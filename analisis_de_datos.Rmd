@@ -1,0 +1,529 @@
+---
+title: "Inv_final"
+author: "Bernardo LM"
+date: "23/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls())
+
+library (stringr)
+library (plyr)
+library (dplyr)
+library (Hmisc)
+library (tidyverse)
+library (flextable)
+library (officer)
+library (ggplot2)
+library (ggcorrplot)
+library (scales)
+library (ggrepel)
+library (ggthemes)
+library (mosaic)
+library (texreg)
+library (ggpubr)
+library (stargazer)
+
+data <- read.csv("C:/Users/Admin/Documents/Inputs/base_final.csv", header=TRUE)
+
+```
+
+<!-- ## Desarrollo del seminario de investigación -->
+
+<!-- El propósito del seminario de investigación es estudiar cuál es la relación entre la calidad de aire y las muertes por COVID-19 en la Ciudad de México desde el primero de junio hasta el 31 de diciembre del 2020. -->
+
+<!-- Primero observaré las relaciones de cada contaminante con el número total de muertes en la Ciudad de México. Después haré el mismo análisis, pero a nivel alcaldía. -->
+
+<!-- Cada "chunk" del documento conlleva primero una filtración y limpieza de datos, le siguen gráficas de las regresiones lineales bivariadas. Después, sigue una serie de "chunks" con modelajes lineales multivariadas para observar cómo se ve afectada la significancia estadística al ajustar con más variables. -->
+
+```{r}
+## Eliminamos NAs y var. innecesarias para las regresiones bivariadas de toda la ciudad
+## Creamos una columna con el número total de muertes por COVID-19 del día
+
+raw_cdmx <- data %>% 
+  na.omit() %>% 
+  select(-X, -pobreza, -densidad_pob, -porcen_60_mas) %>% 
+  group_by(FECHA) %>%
+  do({
+    mutate(., total_m_dia = n_distinct(id_muerte_cov))
+  })
+
+raw_cdmx <- data.frame(raw_cdmx)
+
+detach(package:plyr)
+cdmx <- raw_cdmx %>% 
+  group_by(FECHA, contaminante) %>% 
+  summarise(total_muertes = mean(total_m_dia),
+            valor_co = mean(valor_contaminante))
+
+cdmx <- data.frame(cdmx)
+
+```
+
+<!-- ## Gráficas -->
+<!-- Ciudad de México: -->
+
+```{r}
+## Relación entre concentración de contaminantes y muertes por COVID-19
+## Gráfica de dispersión con regresiones bivariadas
+ggscatter(cdmx, x = "valor_co", y = "total_muertes", 
+          alpha=0.3) +
+  stat_smooth(method = "lm", 
+              se=FALSE, 
+              color= "#f6b44d",
+              formula="y ~ x")+
+  stat_cor(label.y = 250, size = 3.5,
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  facet_wrap(~contaminante,
+             ncol=3, 
+             scales="free_x")+
+  theme(panel.spacing = unit(2, "lines"))+
+  labs(title= "\nRelación entre contaminantes atmosféricos y muertes por COVID-19\nen la Ciudad de México (medición diaria, julio-diciembre 2020)\n",
+       x = "\nConcentración de contaminantes atmosféricos\n",
+       y= "Número de muertes diarias por COVID-19\n",
+       caption= "Fuente: Red Automática de Monitoreo Atmosférico de la Ciudad de México\n Actas de defunción del Registro Civil de la Ciudad de México")+
+  theme_minimal()
+
+```
+
+```{r}
+# Puedo agrupar por fecha y por alcaldía, así me quedo con los números de densidad y pobreza
+
+cdmx_co <- data %>% 
+  filter(contaminante == "CO") %>% 
+  na.omit() %>% 
+  select(-X) %>% 
+  group_by(FECHA, alcaldia) %>%
+  summarise(muertes_cov = sum(unidad_muerte),
+            valor_co = mean(valor_contaminante),
+            cap_hosp_gral = mean(cap_hosp_gral),
+            cap_hosp_uci = mean(cap_hosp_uci),
+            densidad_pob = mean(densidad_pob),
+            pobreza = mean(pobreza),
+            porcen_60_m = mean(porcen_60_mas))
+
+cdmx_no <- data %>% 
+  filter(contaminante == "NO") %>% 
+  na.omit() %>% 
+  select(-X) %>% 
+  group_by(FECHA, alcaldia) %>%
+  summarise(muertes_cov = sum(unidad_muerte),
+            valor_co = mean(valor_contaminante),
+            cap_hosp_gral = mean(cap_hosp_gral),
+            cap_hosp_uci = mean(cap_hosp_uci),
+            densidad_pob = mean(densidad_pob),
+            pobreza = mean(pobreza),
+            porcen_60_m = mean(porcen_60_mas))
+
+cdmx_no2 <- data %>% 
+  filter(contaminante == "NO2") %>% 
+  na.omit() %>% 
+  select(-X) %>% 
+  group_by(FECHA, alcaldia) %>%
+  summarise(muertes_cov = sum(unidad_muerte),
+            valor_co = mean(valor_contaminante),
+            cap_hosp_gral = mean(cap_hosp_gral),
+            cap_hosp_uci = mean(cap_hosp_uci),
+            densidad_pob = mean(densidad_pob),
+            pobreza = mean(pobreza),
+            porcen_60_m = mean(porcen_60_mas))
+
+cdmx_nox <- data %>% 
+  filter(contaminante == "NOX") %>% 
+  na.omit() %>% 
+  select(-X) %>% 
+  group_by(FECHA, alcaldia) %>%
+  summarise(muertes_cov = sum(unidad_muerte),
+            valor_co = mean(valor_contaminante),
+            cap_hosp_gral = mean(cap_hosp_gral),
+            cap_hosp_uci = mean(cap_hosp_uci),
+            densidad_pob = mean(densidad_pob),
+            pobreza = mean(pobreza),
+            porcen_60_m = mean(porcen_60_mas))
+
+cdmx_o3 <- data %>% 
+  filter(contaminante == "O3") %>% 
+  na.omit() %>% 
+  select(-X) %>% 
+  group_by(FECHA, alcaldia) %>%
+  summarise(muertes_cov = sum(unidad_muerte),
+            valor_co = mean(valor_contaminante),
+            cap_hosp_gral = mean(cap_hosp_gral),
+            cap_hosp_uci = mean(cap_hosp_uci),
+            densidad_pob = mean(densidad_pob),
+            pobreza = mean(pobreza),
+            porcen_60_m = mean(porcen_60_mas))
+
+cdmx_so2 <- data %>% 
+  filter(contaminante == "SO2") %>% 
+  na.omit() %>% 
+  select(-X) %>% 
+  group_by(FECHA, alcaldia) %>%
+  summarise(muertes_cov = sum(unidad_muerte),
+            valor_co = mean(valor_contaminante),
+            cap_hosp_gral = mean(cap_hosp_gral),
+            cap_hosp_uci = mean(cap_hosp_uci),
+            densidad_pob = mean(densidad_pob),
+            pobreza = mean(pobreza),
+            porcen_60_m = mean(porcen_60_mas))
+
+# Faltan alcaldías: 3, 4, 7, 10, 12
+# Faltan días: 35
+cdmx_co <- data.frame (cdmx_co)
+cdmx_no <- data.frame (cdmx_no)
+cdmx_no2 <- data.frame(cdmx_no2)
+cdmx_nox <- data.frame(cdmx_nox)
+cdmx_o3 <- data.frame (cdmx_o3)
+cdmx_so2 <- data.frame(cdmx_so2)
+
+
+## Correlaciones
+cor(cdmx_co$valor_co, cdmx_co$muertes_cov, method = "pearson")
+cor(cdmx_no$valor_co, cdmx_no$muertes_cov, method = "pearson")
+cor(cdmx_no2$valor_co, cdmx_no2$muertes_cov, method = "pearson")
+cor(cdmx_nox$valor_co, cdmx_nox$muertes_cov, method = "pearson")
+cor(cdmx_o3$valor_co, cdmx_o3$muertes_cov, method = "pearson") # Esto concuerda con 
+                                                               # la bibliografía revisada
+cor(cdmx_so2$valor_co, cdmx_so2$muertes_cov, method = "pearson")
+
+```
+
+<!-- ## Alcaldías -->
+
+```{r}
+## Relación entre concentración de CO y muertes por COVID-19
+## Gráfica de dispersión con regresiones bivariadas
+ggplot(cdmx_co, aes(x=valor_co, y = muertes_cov)) +
+  geom_point(alpha=0.175)+
+  stat_smooth(method = "lm",
+              size = 0.65,
+              se=FALSE, 
+              color= "#f6b44d",
+              formula="y ~ x")+
+  scale_y_continuous(expand = c(0, 0),
+                     limits=c(0,71),
+                     breaks=seq(0,71,20))+
+  stat_cor(label.y = 65, size = 2.75,
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  facet_wrap(~alcaldia,
+             ncol=4)+
+  theme(panel.spacing = unit(2, "lines"))+
+  labs(title= "\nRelación entre monóxido de carbono (CO) y muertes por COVID-19\n en la Ciudad de México (julio-diciembre 2020)\n",
+       x = "\nConcentración de monóxido de carbono (CO)\n",
+       y= "Número de muertes diarias por COVID-19\n",
+       caption= "Fuente: Red Automática de Monitoreo Atmosférico de la Ciudad de México\n Actas de defunción del Registro Civil de la Ciudad de México")+
+  theme_minimal()
+
+```
+
+```{r}
+## Relación entre concentración de NO y muertes por COVID-19
+## Gráfica de dispersión con regresiones bivariadas
+ggplot(cdmx_no, aes(x=valor_co, y = muertes_cov)) +
+  geom_point(alpha=0.175)+
+  stat_smooth(method = "lm",
+              size = 0.65, 
+              se=FALSE, 
+              color= "#f6b44d",
+              formula="y ~ x")+
+  scale_y_continuous(expand = c(0, 0),
+                     limits=c(0,71),
+                     breaks=seq(0,71,20))+
+  stat_cor(label.y = 65, size = 2.75,
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  facet_wrap(~alcaldia,
+             ncol=3)+
+  theme(panel.spacing = unit(2, "lines"))+
+  labs(title= "\nRelación entre monóxido de nitrógeno (NO) y muertes por COVID-19\n en la Ciudad de México (julio-diciembre 2020)\n",
+       x = "\nConcentración de monóxido de nitrógeno (NO)\n",
+       y= "Número de muertes diarias por COVID-19\n",
+       caption= "Fuente: Red Automática de Monitoreo Atmosférico de la Ciudad de México\n Actas de defunción del Registro Civil de la Ciudad de México")+
+  theme_minimal()
+
+```
+
+```{r}
+## Relación entre concentración de NO2 y muertes por COVID-19
+## Gráfica de dispersión con regresiones bivariadas
+ggplot(cdmx_no2, aes(x=valor_co, y = muertes_cov)) +
+  geom_point(alpha=0.175)+
+  stat_smooth(method = "lm",
+              size = 0.65, 
+              se=FALSE, 
+              color= "#f6b44d",
+              formula="y ~ x")+
+  scale_y_continuous(expand = c(0, 0),
+                     limits=c(0,71),
+                     breaks=seq(0,71,20))+
+  stat_cor(label.y = 65, size = 2.75,
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  facet_wrap(~alcaldia,
+             ncol=4)+
+  theme(panel.spacing = unit(2, "lines"))+
+  labs(title= "\nRelación entre dióxido de nitrógeno (NO2) y muertes por COVID-19\n en la Ciudad de México (julio-diciembre 2020)\n",
+       x = "\nConcentración de dióxido de nitrógeno (NO2)\n",
+       y= "Número de muertes diarias por COVID-19\n",
+       caption= "Fuente: Red Automática de Monitoreo Atmosférico de la Ciudad de México\n Actas de defunción del Registro Civil de la Ciudad de México")+
+  theme_minimal()
+
+```
+
+```{r}
+## Relación entre concentración de NOx y muertes por COVID-19
+## Gráfica de dispersión con regresiones bivariadas
+ggplot(cdmx_nox, aes(x=valor_co, y = muertes_cov)) +
+  geom_point(alpha=0.175)+
+  stat_smooth(method = "lm",
+              size = 0.65, 
+              se=FALSE, 
+              color= "#f6b44d",
+              formula="y ~ x")+
+  scale_y_continuous(expand = c(0, 0),
+                     limits=c(0,71),
+                     breaks=seq(0,71,20))+
+  stat_cor(label.y = 65, size = 2.75,
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  facet_wrap(~alcaldia,
+             ncol=3)+
+  theme(panel.spacing = unit(2, "lines"))+
+  labs(title= "\nRelación entre óxidos de nitrógeno (NOX) y muertes por COVID-19\n en la Ciudad de México (julio-diciembre 2020)\n",
+       x = "\nConcentración de óxidos de nitrógeno (NOX)\n",
+       y= "Número de muertes diarias por COVID-19\n",
+       caption= "Fuente: Red Automática de Monitoreo Atmosférico de la Ciudad de México\n Actas de defunción del Registro Civil de la Ciudad de México")+
+  theme_minimal()
+
+```
+
+```{r}
+## Relación entre concentración de O3 y muertes por COVID-19
+## Gráfica de dispersión con regresiones bivariadas
+ggplot(cdmx_o3, aes(x=valor_co, y = muertes_cov)) +
+  geom_point(alpha=0.175)+
+  stat_smooth(method = "lm",
+              size = 0.65, 
+              se=FALSE, 
+              color= "#f6b44d",
+              formula="y ~ x")+
+  scale_y_continuous(expand = c(0, 0),
+                     limits=c(0,71),
+                     breaks=seq(0,71,20))+
+  stat_cor(label.y = 65, size = 2.75,
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  facet_wrap(~alcaldia,
+             ncol=4)+
+  theme(panel.spacing = unit(2, "lines"))+
+  labs(title= "\nRelación entre ozono (O3) y muertes por COVID-19\n en la Ciudad de México (julio-diciembre 2020)\n",
+       x = "\nConcentración de ozono (O3)\n",
+       y= "Número de muertes diarias por COVID-19\n",
+       caption= "Fuente: Red Automática de Monitoreo Atmosférico de la Ciudad de México\n Actas de defunción del Registro Civil de la Ciudad de México")+
+  theme_minimal()
+
+```
+
+```{r}
+## Relación entre concentración de SO2 y muertes por COVID-19
+## Gráfica de dispersión con regresiones bivariadas
+ggplot(cdmx_so2, aes(x=valor_co, y = muertes_cov)) +
+  geom_point(alpha=0.175)+
+  stat_smooth(method = "lm",
+              size = 0.65, 
+              se=FALSE, 
+              color= "#f6b44d",
+              formula="y ~ x")+
+  scale_y_continuous(expand = c(0, 0),
+                     limits=c(0,71),
+                     breaks=seq(0,71,20))+
+  stat_cor(label.y = 65, size = 2.75,
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  facet_wrap(~alcaldia,
+             ncol=4)+
+  theme(panel.spacing = unit(2, "lines"))+
+  labs(title= "\nRelación entre dióxido de sulfuro (SO2) y muertes por COVID-19\n en la Ciudad de México (julio-diciembre 2020)\n",
+       x = "\nConcentración de dióxido de sulfuro (SO2)\n",
+       y= "Número de muertes diarias por COVID-19\n",
+       caption= "Fuente: Red Automática de Monitoreo Atmosférico de la Ciudad de México\n Actas de defunción del Registro Civil de la Ciudad de México")+
+  theme_minimal()
+
+```
+
+<!-- ## Matrices de correlación -->
+
+```{r}
+## Monóxido de carbono (CO)
+raw_cor_co <- cdmx_co %>% 
+  select(-FECHA, -alcaldia)
+
+corr_co <- round(cor(raw_cor_co), 2)
+
+ggcorrplot(corr_co, type = "lower",
+           outline.color = "grey10",
+           lab = TRUE,
+           colors = c("#E46726", "white", "#6D9EC1"))+
+  labs(title = "Matriz de correlaciones contaminante CO")
+
+## Monóxido de nitrógeno (NO)
+raw_cor_no <- cdmx_no %>% 
+  select(-FECHA, -alcaldia)
+
+corr_no <- round(cor(raw_cor_no), 2)
+
+ggcorrplot(corr_no, type = "lower",
+           outline.color = "grey10",
+           lab = TRUE,
+           colors = c("#E46726", "white", "#6D9EC1"))+
+  labs(title = "Matriz de correlaciones contaminante NO")
+
+## Dióxido de nitrógeno (NO2)
+raw_cor_no2 <- cdmx_no2 %>% 
+  select(-FECHA, -alcaldia)
+
+corr_no2 <- round(cor(raw_cor_no2), 2)
+
+ggcorrplot(corr_no2, type = "lower",
+           outline.color = "grey10",
+           lab = TRUE,
+           colors = c("#E46726", "white", "#6D9EC1"))+
+  labs(title = "Matriz de correlaciones contaminante NO2")
+
+## Óxidos de nitrógeno (NOX)
+raw_cor_nox <- cdmx_nox %>% 
+  select(-FECHA, -alcaldia)
+
+corr_nox <- round(cor(raw_cor_nox), 2)
+
+ggcorrplot(corr_nox, type = "lower",
+           outline.color = "grey10",
+           lab = TRUE,
+           colors = c("#E46726", "white", "#6D9EC1"))+
+  labs(title = "Matriz de correlaciones contaminante NOX")
+
+## Ozono (O3)
+raw_cor_o3 <- cdmx_o3 %>% 
+  select(-FECHA, -alcaldia)
+
+corr_o3 <- round(cor(raw_cor_o3), 2)
+
+ggcorrplot(corr_o3, type = "lower",
+           outline.color = "grey10",
+           lab = TRUE,
+           colors = c("#E46726", "white", "#6D9EC1"))+
+  labs(title = "Matriz de correlaciones contaminante O3")
+
+## Dióxido de sulfuro (SO2)
+raw_cor_so2 <- cdmx_so2 %>% 
+  select(-FECHA, -alcaldia)
+
+corr_so2 <- round(cor(raw_cor_so2), 2)
+
+ggcorrplot(corr_so2, type = "lower",
+           outline.color = "grey10",
+           lab = TRUE,
+           colors = c("#E46726", "white", "#6D9EC1"))+
+  labs(title = "Matriz de correlaciones contaminante SO2")
+
+```
+
+<!-- ## Regresión multivariada -->
+
+## Modelos de regresión con densidad
+```{r}
+## Regresión multivariada con la var. pobreza, sin la var. porcen_60_m
+model_co <- lm(muertes_cov ~ valor_co + pobreza + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_co)
+
+model_no <- lm(muertes_cov ~ valor_co + pobreza + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_no)
+
+model_no2 <- lm(muertes_cov ~ valor_co + pobreza + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_no2)
+
+model_nox <- lm(muertes_cov ~ valor_co + pobreza + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_nox)
+
+model_o3 <- lm(muertes_cov ~ valor_co + pobreza + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_o3)
+
+model_so2 <- lm(muertes_cov ~ valor_co + pobreza + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_so2)
+
+models_2 <- list(model_co, model_no, model_no2, model_nox, model_o3, model_so2)
+screenreg(models_2, 
+          custom.model.names = c(" CO", " NO", " NO2", " NOX", " O3", " SO2"),
+          custom.coef.names = c("(Intercepto)", 
+                                "Contaminante", 
+                                "Pobreza", 
+                                "Densidad pob",
+                                "Cap_hosp_gral",
+                                "Cap_hosp_uci"))
+```
+
+```{r}
+## Regresión multivariada con la var. porcen_60_m, sin la var. pobreza
+model_co <- lm(muertes_cov ~ valor_co + porcen_60_m + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_co)
+
+model_no <- lm(muertes_cov ~ valor_co + porcen_60_m + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_no)
+
+model_no2 <- lm(muertes_cov ~ valor_co + porcen_60_m + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_no2)
+
+model_nox <- lm(muertes_cov ~ valor_co + porcen_60_m + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_nox)
+
+model_o3 <- lm(muertes_cov ~ valor_co + porcen_60_m + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_o3)
+
+model_so2 <- lm(muertes_cov ~ valor_co + porcen_60_m + densidad_pob + cap_hosp_gral + cap_hosp_uci, data = cdmx_so2)
+
+models_2 <- list(model_co, model_no, model_no2, model_nox, model_o3, model_so2)
+screenreg(models_2, 
+          custom.model.names = c(" CO", " NO", " NO2", " NOX", " O3", " SO2"),
+          custom.coef.names = c("(Intercepto)", 
+                                "Contaminante", 
+                                "Más 60 años %", 
+                                "Densidad pob",
+                                "Cap_hosp_gral",
+                                "Cap_hosp_uci"))
+```
+
+```{r}
+## Probamos la capacidad predictiva del modelo
+data_prob <- read.csv("C:/Users/Admin/Documents/Inputs/base_final_prob.csv", header=TRUE)
+
+cdmx_nox_prob <- data_prob %>% 
+  filter(contaminante == "NOX") %>% 
+  na.omit() %>% 
+  select(-X) %>% 
+  group_by(FECHA, alcaldia) %>%
+  summarise(valor_co = mean(valor_contaminante),
+            cap_hosp_gral = mean(cap_hosp_gral),
+            cap_hosp_uci = mean(cap_hosp_uci),
+            densidad_pob = mean(densidad_pob),
+            pobreza = mean(pobreza))
+
+cdmx_nox_prob_m <- data_prob %>% 
+  filter(contaminante == "NOX") %>% 
+  na.omit() %>% 
+  select(-X) %>% 
+  group_by(FECHA, alcaldia) %>%
+  summarise(muertes_cov = sum(unidad_muerte),
+            valor_co = mean(valor_contaminante),
+            cap_hosp_gral = mean(cap_hosp_gral),
+            cap_hosp_uci = mean(cap_hosp_uci),
+            densidad_pob = mean(densidad_pob),
+            pobreza = mean(pobreza))
+
+cdmx_nox_prob <- data.frame(cdmx_nox_prob)
+cdmx_nox_prob_m <- data.frame(cdmx_nox_prob_m)
+
+predict(model_nox, newdata = cdmx_nox_prob[54,], interval = "confidence", level = 0.99)
+cdmx_nox_prob_m[54,]
+cdmx_nox_prob[54,]
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
